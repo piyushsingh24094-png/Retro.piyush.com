@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Retro Arcade</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#080b15;color:#fff;font-family:Arial,sans-serif}
+header{text-align:center;padding:24px 12px;background:linear-gradient(135deg,#151d46,#48115f)}
+header h1{margin:0;color:#63f6ff;text-shadow:0 0 12px #63f6ff}
+header p{color:#ddd}
+nav{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;padding:12px;background:#11162a;position:sticky;top:0;z-index:3}
+button{font:inherit;cursor:pointer}
+nav button,.back,.restart,.ctrl{border:0;border-radius:8px;padding:10px 14px;background:#293255;color:#fff}
+nav button:hover,.back:hover,.restart:hover,.ctrl:hover{background:#46558b}
+main{max-width:900px;margin:auto;padding:18px}
+.game{display:none;background:#11172c;border:1px solid #35416f;border-radius:15px;padding:18px}
+.game.active{display:block}
+h2{text-align:center;color:#ff73d8}
+.info{text-align:center;color:#cdd1e3}
+canvas{display:block;margin:12px auto;max-width:100%;background:#02040a;border:2px solid #3f4d82}
+.controls{text-align:center;margin:10px}
+.controls button{min-width:52px;margin:3px}
+#tttBoard{display:grid;grid-template-columns:repeat(3,82px);gap:6px;justify-content:center}
+.tttCell{width:82px;height:82px;border:0;border-radius:8px;background:#252d4d;color:#fff;font-size:38px}
+#memoryBoard{display:grid;grid-template-columns:repeat(4,70px);gap:8px;justify-content:center}
+.memoryCard{width:70px;height:70px;border:0;border-radius:8px;background:#293255;font-size:30px}
+.memoryCard.open{background:#66377c}
+.status{text-align:center;min-height:24px;font-weight:bold}
+footer{text-align:center;color:#777;padding:25px}
+@media(max-width:520px){
+canvas{width:100%;height:auto}
+#tttBoard{grid-template-columns:repeat(3,72px)}
+.tttCell{width:72px;height:72px}
+#memoryBoard{grid-template-columns:repeat(4,60px)}
+.memoryCard{width:60px;height:60px}
+}
+</style>
+</head>
+<body>
+
+<header>
+<h1>🕹️ RETRO ARCADE</h1>
+<p>5 Classic Games</p>
+</header>
+
+<nav>
+<button onclick="openGame('snake')">🐍 Snake</button>
+<button onclick="openGame('pong')">🏓 Pong</button>
+<button onclick="openGame('ttt')">❌ Tic-Tac-Toe</button>
+<button onclick="openGame('breakout')">🧱 Breakout</button>
+<button onclick="openGame('memory')">🧠 Memory</button>
+</nav>
+
+<main>
+
+<section id="snake" class="game active">
+<h2>🐍 Snake</h2>
+<p class="info">Arrow keys / WASD or the buttons below</p>
+<canvas id="snakeCanvas" width="360" height="360"></canvas>
+<div class="status" id="snakeStatus">Score: 0</div>
+<div class="controls">
+<button class="ctrl" onclick="setSnakeDir(0,-1)">⬆️</button><br>
+<button class="ctrl" onclick="setSnakeDir(-1,0)">⬅️</button>
+<button class="ctrl" onclick="setSnakeDir(1,0)">➡️</button><br>
+<button class="ctrl" onclick="setSnakeDir(0,1)">⬇️</button>
+</div>
+<div class="controls"><button class="restart" onclick="resetSnake()">Restart</button></div>
+</section>
+
+<section id="pong" class="game">
+<h2>🏓 Pong</h2>
+<p class="info">Move your paddle with W/S or ↑/↓</p>
+<canvas id="pongCanvas" width="600" height="340"></canvas>
+<div class="status" id="pongStatus">You 0 : 0 CPU</div>
+<div class="controls">
+<button class="ctrl" onpointerdown="pongKeys.up=true" onpointerup="pongKeys.up=false">⬆️</button>
+<button class="ctrl" onpointerdown="pongKeys.down=true" onpointerup="pongKeys.down=false">⬇️</button>
+</div>
+<div class="controls"><button class="restart" onclick="resetPong()">Restart</button></div>
+</section>
+
+<section id="ttt" class="game">
+<h2>❌ Tic-Tac-Toe</h2>
+<div id="tttBoard"></div>
+<p class="status" id="tttStatus">Your turn — X</p>
+<div class="controls"><button class="restart" onclick="resetTTT()">Restart</button></div>
+</section>
+
+<section id="breakout" class="game">
+<h2>🧱 Breakout</h2>
+<p class="info">Arrow keys / A-D or buttons</p>
+<canvas id="breakCanvas" width="600" height="400"></canvas>
+<div class="status" id="breakStatus">Score: 0 | Lives: 3</div>
+<div class="controls">
+<button class="ctrl" onclick="movePaddle(-35)">⬅️</button>
+<button class="ctrl" onclick="movePaddle(35)">➡️</button>
+</div>
+<div class="controls"><button class="restart" onclick="resetBreakout()">Restart</button></div>
+</section>
+
+<section id="memory" class="game">
+<h2>🧠 Memory Match</h2>
+<p class="info">Match all 8 pairs.</p>
+<div id="memoryBoard"></div>
+<p class="status" id="memoryStatus">Moves: 0</p>
+<div class="controls"><button class="restart" onclick="resetMemory()">Restart</button></div>
+</section>
+
+</main>
+
+<footer>© 2026 Retro Arcade</footer>
+
+<script>
+function openGame(id){
+ document.querySelectorAll('.game').forEach(g=>g.classList.remove('active'));
+ document.getElementById(id).classList.add('active');
+}
+
+/* ---------- SNAKE ---------- */
+const sc=document.getElementById('snakeCanvas'), sx=sc.getContext('2d');
+const S=18;
+let snake,food,sdir,queued,sscore,sdead;
+
+function resetSnake(){
+ snake=[{x:9,y:9},{x:8,y:9},{x:7,y:9}];
+ sdir={x:1,y:0}; queued={x:1,y:0}; sscore=0; sdead=false;
+ placeFood(); drawSnake();
+ document.getElementById('snakeStatus').textContent='Score: 0';
+}
+function placeFood(){
+ do{food={x:Math.floor(Math.random()*S),y:Math.floor(Math.random()*S)}}
+ while(snake.some(p=>p.x===food.x&&p.y===food.y));
+}
+function setSnakeDir(x,y){
+ if(sdead)return;
+ if(x!==-sdir.x||y!==-sdir.y) queued={x,y};
+}
+function snakeTick(){
+ if(sdead)return;
+ sdir=queued;
+ const head={x:snake[0].x+sdir.x,y:snake[0].y+sdir.y};
+ const hitWall=head.x<0||head.x>=S||head.y<0||head.y>=S;
+ const willEat=head.x===food.x&&head.y===food.y;
+ const body=willEat?snake:snake.slice(0,-1);
+ if(hitWall||body.some(p=>p.x===head.x&&p.y===head.y)){
+  sdead=true; document.getElementById('snakeStatus').textContent='Game Over! Score: '+sscore; drawSnake(); return;
+ }
+ snake.unshift(head);
+ if(willEat){sscore++;placeFood()}else snake.pop();
+ document.getElementById('snakeStatus').textContent='Score: '+sscore;
+ drawSnake();
+}
+function drawSnake(){
+ sx.fillStyle='#03050a';sx.fillRect(0,0,360,360);
+ sx.strokeStyle='#11182b';
+ for(let i=0;i<=S;i++){sx.beginPath();sx.moveTo(i*20,0);sx.lineTo(i*20,360);sx.stroke();sx.beginPath();sx.moveTo(0,i*20);sx.lineTo(360,i*20);sx.stroke()}
+ sx.fillStyle='#ff477e';sx.fillRect(food.x*20+3,food.y*20+3,14,14);
+ snake.forEach((p,i)=>{sx.fillStyle=i===0?'#8aff00':'#36d66b';sx.fillRect(p.x*20+2,p.y*20+2,16,16)});
+}
+setInterval(snakeTick,125); resetSnake();
+
+/* ---------- PONG ---------- */
+const pc=document.getElementById('pongCanvas'),px=pc.getContext('2d');
+let pongKeys={up:false,down:false}, py, cy, ball, pscore,cscore,pongOver;
+function resetPong(){
+ py=130;cy=130;ball={x:300,y:170,dx:4,dy:3};pscore=0;cscore=0;pongOver=false;
+ document.getElementById('pongStatus').textContent='You 0 : 0 CPU'; drawPong();
+}
+function pongTick(){
+ if(pongOver)return;
+ if(pongKeys.up)py-=6;if(pongKeys.down)py+=6;
+ py=Math.max(0,Math.min(260,py));
+ cy+=(ball.y-40-cy)*0.09;cy=Math.max(0,Math.min(260,cy));
+ ball.x+=ball.dx;ball.y+=ball.dy;
+ if(ball.y<8||ball.y>332){ball.dy*=-1;ball.y=Math.max(8,Math.min(332,ball.y))}
+ if(ball.dx<0&&ball.x<35&&ball.x>20&&ball.y>py-5&&ball.y<py+85){
+  ball.dx=Math.abs(ball.dx);ball.dy+=(ball.y-(py+40))*0.06;
+ }
+ if(ball.dx>0&&ball.x>565&&ball.x<580&&ball.y>cy-5&&ball.y<cy+85){
+  ball.dx=-Math.abs(ball.dx);ball.dy+=(ball.y-(cy+40))*0.06;
+ }
+ if(ball.x<0){cscore++;serve(-1)}
+ if(ball.x>600){pscore++;serve(1)}
+ if(pscore>=5||cscore>=5){pongOver=true;document.getElementById('pongStatus').textContent=(pscore>=5?'You win! ':'CPU wins! ')+pscore+' : '+cscore}
+ else document.getElementById('pongStatus').textContent='You '+pscore+' : '+cscore+' CPU';
+ drawPong();
+}
+function serve(direction){
+ ball={x:300,y:170,dx:4*direction,dy:(Math.random()>.5?3:-3)};
+}
+function drawPong(){
+ px.fillStyle='#03050a';px.fillRect(0,0,600,340);
+ px.setLineDash([8,8]);px.strokeStyle='#26304f';px.beginPath();px.moveTo(300,0);px.lineTo(300,340);px.stroke();px.setLineDash([]);
+ px.fillStyle='#fff';px.fillRect(15,py,15,80);px.fillRect(570,cy,15,80);
+ px.beginPath();px.arc(ball.x,ball.y,8,0,Math.PI*2);px.fill();
+}
+setInterval(pongTick,16);resetPong();
+
+/* ---------- TIC TAC TOE ---------- */
+let ttt,tttTurn,tttOver;
+const wins=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+function resetTTT(){ttt=Array(9).fill('');tttTurn='X';tttOver=false;renderTTT();document.getElementById('tttStatus').textContent='Your turn — X'}
+function tttWinner(a){return wins.find(w=>a[w[0]]&&a[w[0]]===a[w[1]]&&a[w[1]]===a[w[2]])}
+function renderTTT(){
+ const b=document.getElementById('tttBoard');b.innerHTML='';
+ ttt.forEach((v,i)=>{const x=document.createElement('button');x.className='tttCell';x.textContent=v;x.onclick=()=>tttMove(i);b.appendChild(x)});
+}
+function tttMove(i){
+ if(tttOver||ttt[i])return;
+ ttt[i]='X';renderTTT();
+ if(tttWinner(ttt)){endTTT('You win! 🎉');return}
+ if(!ttt.includes('')){endTTT('Draw!');return}
+ tttTurn='O';document.getElementById('tttStatus').textContent='Computer thinking...';
+ setTimeout(cpuMove,300);
+}
+function cpuMove(){
+ if(tttOver)return;
+ let free=ttt.map((v,i)=>v?null:i).filter(i=>i!==null);
+ let choice=free[Math.floor(Math.random()*free.length)];
+ ttt[choice]='O';renderTTT();
+ if(tttWinner(ttt)){endTTT('Computer wins!');return}
+ if(!ttt.includes('')){endTTT('Draw!');return}
+ tttTurn='X';document.getElementById('tttStatus').textContent='Your turn — X';
+}
+function endTTT(msg){tttOver=true;document.getElementById('tttStatus').textContent=msg}
+resetTTT();
+
+/* ---------- BREAKOUT ---------- */
+const bc=document.getElementById('breakCanvas'), bx=bc.getContext('2d');
+let paddleX,bricks,bball,blives,bscore,bover;
+function resetBreakout(){
+ paddleX=250;blives=3;bscore=0;bover=false;
+ bricks=[];
+ for(let r=0;r<5;r++)for(let c=0;c<10;c++)bricks.push({x:c*60+4,y:r*24+35,w:52,h:17,alive:true});
+ resetBreakBall(1);drawBreakout();updateBreakStatus();
+}
+function resetBreakBall(dir){
+ bball={x:300,y:340,dx:3.5*dir,dy:-4};
+}
+function movePaddle(n){if(bover)return;paddleX=Math.max(0,Math.min(500,paddleX+n))}
+function breakoutTick(){
+ if(bover)return;
+ bball.x+=bball.dx;bball.y+=bball.dy;
+ if(bball.x<7||bball.x>593){bball.dx*=-1;bball.x=Math.max(7,Math.min(593,bball.x))}
+ if(bball.y<7){bball.dy=Math.abs(bball.dy)}
+ if(bball.dy>0&&bball.y>345&&bball.y<375&&bball.x>paddleX-5&&bball.x<paddleX+105){
+  bball.dy=-Math.abs(bball.dy);bball.dx+=(bball.x-(paddleX+50))*0.035;
+ }
+ for(const br of bricks){
+  if(br.alive&&bball.x>br.x&&bball.x<br.x+br.w&&bball.y>br.y&&bball.y<br.y+br.h){
+   br.alive=false;bscore++;bball.dy*=-1;break;
+  }
+ }
+ if(bricks.every(b=>!b.alive)){bover=true;document.getElementById('breakStatus').textContent='You cleared all bricks! 🎉';}
+ if(bball.y>410){
+  blives--;
+  if(blives<=0){bover=true;document.getElementById('breakStatus').textContent='Game Over! Score: '+bscore}
+  else resetBreakBall(Math.random()>.5?1:-1);
+ }
+ drawBreakout();updateBreakStatus();
+}
+function updateBreakStatus(){if(!bover)document.getElementById('breakStatus').textContent='Score: '+bscore+' | Lives: '+blives}
+function drawBreakout(){
+ bx.fillStyle='#03050a';bx.fillRect(0,0,600,400);
+ bricks.forEach((br,i)=>{if(br.alive){bx.fillStyle=['#ff4d7d','#ff9f43','#ffe15a','#55e36a','#55d9ff'][Math.floor(i/10)];bx.fillRect(br.x,br.y,br.w,br.h)}});
+ bx.fillStyle='#fff';bx.fillRect(paddleX,380,100,10);
+ bx.beginPath();bx.arc(bball.x,bball.y,7,0,Math.PI*2);bx.fill();
+}
+setInterval(breakoutTick,16);resetBreakout();
+
+/* ---------- MEMORY ---------- */
+const symbols=['🍎','🚀','👾','⚽','🍕','🐱','⭐','🎮'];
+let memFirst=null,memLock=false,memMoves=0,memMatched=0;
+function resetMemory(){
+ const deck=[...symbols,...symbols].sort(()=>Math.random()-0.5);
+ memFirst=null;memLock=false;memMoves=0;memMatched=0;
+ const board=document.getElementById('memoryBoard');board.innerHTML='';
+ deck.forEach((emoji,i)=>{
+  const c=document.createElement('button');c.className='memoryCard';c.textContent='?';c.dataset.emoji=emoji;
+  c.onclick=()=>flipMemory(c);board.appendChild(c);
+ });
+ document.getElementById('memoryStatus').textContent='Moves: 0';
+}
+function flipMemory(c){
+ if(memLock||c.classList.contains('open')||c.classList.contains('matched'))return;
+ c.classList.add('open');c.textContent=c.dataset.emoji;
+ if(!memFirst){memFirst=c;return}
+ memMoves++;document.getElementById('memoryStatus').textContent='Moves: '+memMoves;
+ if(memFirst.dataset.emoji===c.dataset.emoji){
+  memFirst.classList.add('matched');c.classList.add('matched');memMatched++;memFirst=null;
+  if(memMatched===symbols.length)document.getElementById('memoryStatus').textContent='You matched everything in '+memMoves+' moves! 🎉';
+ }else{
+  memLock=true;const first=memFirst;
+  setTimeout(()=>{first.classList.remove('open');c.classList.remove('open');first.textContent='?';c.textContent='?';memFirst=null;memLock=false},650);
+ }
+}
+resetMemory();
+
+/* ---------- KEYBOARD ---------- */
+document.addEventListener('keydown',e=>{
+ const k=e.key.toLowerCase();
+ if(k==='arrowup'||k==='w'){pongKeys.up=true;setSnakeDir(0,-1)}
+ if(k==='arrowdown'||k==='s'){pongKeys.down=true;setSnakeDir(0,1)}
+ if(k==='arrowleft'||k==='a'){setSnakeDir(-1,0);movePaddle(-25)}
+ if(k==='arrowright'||k==='d'){setSnakeDir(1,0);movePaddle(25)}
+});
+document.addEventListener('keyup',e=>{
+ const k=e.key.toLowerCase();
+ if(k==='arrowup'||k==='w')pongKeys.up=false;
+ if(k==='arrowdown'||k==='s')pongKeys.down=false;
+});
+</script>
+</body>
+</html>
